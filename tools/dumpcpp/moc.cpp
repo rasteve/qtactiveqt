@@ -13,6 +13,8 @@
 
 QT_BEGIN_NAMESPACE
 
+using namespace Qt::StringLiterals;
+
 QByteArray setterName(const QByteArray &propertyName)
 {
     QByteArray setter(propertyName);
@@ -179,63 +181,6 @@ static QString runProcess(const QString  &binary, const QStringList &args, const
     return processOutput(process.readAllStandardOutput());
 }
 
-static int lineStart(int pos, const QString *s)
-{
-    const int lineStart = s->lastIndexOf(QLatin1Char('\n'), pos);
-    return lineStart >= 0 ? lineStart + 1 : 0;
-}
-
-static int nextLineFeed(int pos, const QString *s)
-{
-    const int nextLineStart = s->indexOf(QLatin1Char('\n'), pos);
-    return nextLineStart >= 0 ? nextLineStart : s->size();
-}
-
-static void removeLines(const QString &start, const QString &end,
-                        QString *s, bool keepEnd = false)
-{
-    int startPos = s->indexOf(start);
-    if (startPos < 0)
-        return;
-    int endPos = s->indexOf(end, startPos + start.size());
-    if (endPos < 0)
-        return;
-
-    startPos = lineStart(startPos, s);
-    endPos = keepEnd
-        ? lineStart(endPos, s)
-        : nextLineFeed(endPos + end.size(), s);
-    s->remove(startPos, endPos - startPos);
-}
-
-static QString cleanCode(QString code, const QString &className)
-{
-    const char *removeFunctions[] = {"metaObject", "qt_metacall", "qt_static_metacall"};
-
-    const QString funcStart = className + QLatin1String("::");
-    const QString nextFuncStart = QLatin1String("\n}");
-    for (auto function :  removeFunctions)
-        removeLines(funcStart + QLatin1String(function) + QLatin1Char('('), nextFuncStart, &code);
-
-    // qt_static_metacall is not implemented, cannot access private function of QAxObject
-    code.replace(QLatin1String("    qt_static_metacall,"), QLatin1String("    nullptr,"));
-
-    // Remove internal signals
-    removeLines(QLatin1String("// SIGNAL 0"), QLatin1String("QT_WARNING_POP"), &code, true);
-
-    // Fix enum uint(Namespace::Class::Value) -> uint(Namespace::Value) (dumpcpp convention)
-    const QString enumPrefix = QLatin1String("uint(");
-    QString parentName = className;
-    const int lastSep = parentName.lastIndexOf(QLatin1String("::"));
-    if (lastSep >= 0)
-        parentName.truncate(lastSep);
-    else
-        parentName.clear();
-    code.replace(enumPrefix + className + QLatin1String("::"),
-                 enumPrefix + parentName + QLatin1String("::"));
-    return code;
-}
-
 QString mocCode(const QMetaObject *mo, const QString &qualifiedClassName,
                 QString *errorString)
 {
@@ -249,14 +194,13 @@ QString mocCode(const QMetaObject *mo, const QString &qualifiedClassName,
 
     const QString binary = QLatin1String("moc.exe");
 
-    QString result = runProcess(binary, {}, headerCode.toUtf8(), errorString);
+    QString result = runProcess(binary, { u"--active-qt"_s }, headerCode.toUtf8(), errorString);
     if (result.isEmpty()) {
         errorString->append(QLatin1String("\n\nOffending code:\n"));
         errorString->append(headerCode);
-        return result;
     }
 
-    return cleanCode(result, name.join(QLatin1String("::")));
+    return result;
 }
 
 QT_END_NAMESPACE
