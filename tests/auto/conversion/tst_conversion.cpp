@@ -17,8 +17,6 @@
 
 using Microsoft::WRL::ComPtr;
 
-QT_BEGIN_NAMESPACE
-
 using namespace Qt::StringLiterals;
 
 class tst_Conversion : public QObject
@@ -470,7 +468,5 @@ void tst_Conversion::addScalarMaxValueRow()
 }
 
 QTEST_MAIN(tst_Conversion)
-
-QT_END_NAMESPACE
 
 #include "tst_conversion.moc"
